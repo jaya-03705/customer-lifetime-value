@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Customer Lifetime Value (CLV) Behavioral & Regression Analytics</title>
+    <!-- Tailwind CSS for modern styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js for interactive visualizations -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- PapaParse for robust CSV parsing -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col">
+
+    <!-- Header -->
+    <header class="bg-indigo-900 text-white shadow-md">
+        <div class="max-w-7xl mx-auto px-4 py-6 flex flex-col md:flex-row justify-between items-center">
+            <div>
+                <h1 class="text-2xl font-bold tracking-tight">Customer Lifetime Value (CLV) Engine</h1>
+                <p class="text-indigo-200 text-sm mt-1">Behavioral Analytics & Predictive Regression Dashboard</p>
+            </div>
+            <div class="mt-4 md:mt-0 flex items-center space-x-3">
+                <label class="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg text-sm font-medium cursor-pointer transition shadow">
+                    Upload Dataset (CSV)
+                    <input type="file" id="csvFileInput" accept=".csv" class="hidden">
+                </label>
+                <button id="loadSampleBtn" class="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition shadow">
+                    Load Sample Data
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="max-w-7xl mx-auto px-4 py-8 flex-grow w-full space-y-8">
+
+        <!-- Control Parameters & Configuration Panel -->
+        <section class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+            <h2 class="text-lg font-semibold text-slate-900 mb-4">Regression & CLV Parameters</h2>
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+                <div>
+                    <label class="block text-xs font-medium text-slate-600 mb-1">Profit Margin (%)</label>
+                    <input type="number" id="profitMargin" value="20" class="w-full border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-slate-600 mb-1">Discount Rate (WACC %)</label>
+                    <input type="number" id="discountRate" value="10" class="w-full border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-slate-600 mb-1">Avg Customer Lifespan (Years)</label>
+                    <input type="number" id="timeHorizon" value="3" class="w-full border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-indigo-500">
+                </div>
+                <div class="flex items-end">
+                    <button id="recalculateBtn" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-2 px-4 rounded-lg text-sm font-semibold transition shadow-sm">
+                        Run Regression Model
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- KPI Summary Cards -->
+        <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                <p class="text-xs font-medium text-slate-500 uppercase tracking-wider">Total Customers</p>
+                <p id="kpiTotalCustomers" class="text-2xl font-bold text-slate-900 mt-2">0</p>
+            </div>
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                <p class="text-xs font-medium text-slate-500 uppercase tracking-wider">Average CLV</p>
+                <p id="kpiAvgClv" class="text-2xl font-bold text-indigo-600 mt-2">$0.00</p>
+            </div>
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                <p class="text-xs font-medium text-slate-500 uppercase tracking-wider">Predicted Total Value</p>
+                <p id="kpiTotalValue" class="text-2xl font-bold text-emerald-600 mt-2">$0.00</p>
+            </div>
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                <p class="text-xs font-medium text-slate-500 uppercase tracking-wider">Model R² (Regression Fit)</p>
+                <p id="kpiRegressionFit" class="text-2xl font-bold text-amber-600 mt-2">0.00</p>
+            </div>
+        </section>
+
+        <!-- Charts Grid -->
+        <section class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                <h3 class="text-base font-semibold text-slate-900 mb-4">CLV Distribution Histogram</h3>
+                <div class="relative h-72">
+                    <canvas id="clvHistogramChart"></canvas>
+                </div>
+            </div>
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                <h3 class="text-base font-semibold text-slate-900 mb-4">Behavioral Frequency vs. Monetary Value</h3>
+                <div class="relative h-72">
+                    <canvas id="behaviorScatterChart"></canvas>
+                </div>
+            </div>
+        </section>
+
+        <!-- Data Table Section -->
+        <section class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+            <div class="p-6 border-b border-slate-200 flex flex-col sm:flex-row justify-between items-center gap-4">
+                <h3 class="text-base font-semibold text-slate-900">Customer Records & Predicted CLV</h3>
+                <div class="flex items-center space-x-3 w-full sm:w-auto">
+                    <input type="text" id="searchInput" placeholder="Search customer ID..." class="border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-indigo-500 w-full sm:w-64">
+                    <button id="exportCsvBtn" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-1.5 rounded-lg text-sm font-medium transition whitespace-nowrap">
+                        Export Results
+                    </button>
+                </div>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse text-sm">
+                    <thead>
+                        <tr class="bg-slate-100 text-slate-600 font-semibold border-b border-slate-200">
+                            <th class="p-4">Customer ID</th>
+                            <th class="p-4">Recency (Days)</th>
+                            <th class="p-4">Frequency</th>
+                            <th class="p-4">Monetary Value</th>
+                            <th class="p-4">Predicted CLV</th>
+                            <th class="p-4">Segment</th>
+                        </tr>
+                    </thead>
+                    <tbody id="customerTableBody" class="divide-y divide-slate-200">
+                        <tr>
+                            <td colspan="6" class="p-6 text-center text-slate-500">No data loaded. Upload your CSV dataset or click "Load Sample Data".</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-white border-t border-slate-200 mt-12 py-6 text-center text-xs text-slate-500">
+        Customer Lifetime Value Engine &bull; Built with HTML5, Tailwind CSS, and Chart.js
+    </footer>
+
+    <!-- JavaScript Engine -->
+    <script>
+        let rawData = [];
+        let processedData = [];
+        let clvHistogramChart = null;
+        let behaviorScatterChart = null;
+
+        // Sample Data Generator matching standard behavioral/regression structure
+        document.getElementById('loadSampleBtn').addEventListener('click', () => {
+            rawData = [];
+            const sampleIds = ['CUST-1001', 'CUST-1002', 'CUST-1003', 'CUST-1004', 'CUST-1005', 'CUST-1006', 'CUST-1007', 'CUST-1008', 'CUST-1009', 'CUST-1010'];
+            for (let i = 0; i < 200; i++) {
+                rawData.push({
+                    CustomerID: i < 10 ? sampleIds[i] : `CUST-${1011 + i}`,
+                    Recency: Math.floor(Math.random() * 365),
+                    Frequency: Math.floor(Math.random() * 25) + 1,
+                    Monetary: Math.floor(Math.random() * 1500) + 50
+                });
+            }
+            runClvPipeline();
+        });
+
+        // File Upload Listener for CSV dataset
+        document.getElementById('csvFileInput').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            Papa.parse(file, {
+                header: true,
+                dynamicTyping: true,
+                skipEmptyLines: true,
+                complete: (results) => {
+                    rawData = results.data;
+                    runClvPipeline();
+                }
+            });
+        });
+
+        document.getElementById('recalculateBtn').addEventListener('click', () => {
+            if (rawData.length > 0) runClvPipeline();
+        });
+
+        function guessColumn(row, keywords) {
+            const keys = Object.keys(row);
+            for (let kw of keywords) {
+                const found = keys.find(k => k.toLowerCase().includes(kw));
+                if (found) return found;
+            }
+            return keys[0];
+        }
+
+        function runClvPipeline() {
+            if (rawData.length === 0) return;
+
+            const sample = rawData[0];
+            const colId = guessColumn(sample, ['id', 'customer', 'cust']);
+            const colRec = guessColumn(sample, ['recency', 'recent', 'days']);
+            const colFreq = guessColumn(sample, ['frequency', 'freq', 'count', 'transactions']);
+            const colMon = guessColumn(sample, ['monetary', 'revenue', 'spend', 'amount', 'value']);
+
+            const profitMargin = parseFloat(document.getElementById('profitMargin').value) / 100 || 0.2;
+            const discountRate = parseFloat(document.getElementById('discountRate').value) / 100 || 0.1;
+            const horizon = parseFloat(document.getElementById('timeHorizon').value) || 3;
+
+            // Simple Linear Regression calculation for Monetary vs Frequency
+            let n = rawData.length;
+            let sumF = 0, sumM = 0, sumFM = 0, sumFF = 0;
+
+            rawData.forEach(row => {
+                let f = parseFloat(row[colFreq]) || 1;
+                let m = parseFloat(row[colMon]) || 100;
+                sumF += f;
+                sumM += m;
+                sumFM += f * m;
+                sumFF += f * f;
+            });
+
+            let slope = (n * sumFM - sumF * sumM) / (n * sumFF - sumF * sumF || 1);
+            let intercept = (sumM - slope * sumF) / n;
+
+            // R-squared calculation
+            let meanM = sumM / n;
+            let ssTot = 0, ssRes = 0;
+            rawData.forEach(row => {
+                let f = parseFloat(row[colFreq]) || 1;
+                let m = parseFloat(row[colMon]) || 100;
+                let predM = intercept + slope * f;
+                ssTot += Math.pow(m - meanM, 2);
+                ssRes += Math.pow(m - predM, 2);
+            });
+            let rSquared = ssTot === 0 ? 0 : Math.max(0, 1 - (ssRes / ssTot));
+
+            // Process individual CLV
+            processedData = rawData.map(row => {
+                let cid = row[colId] || 'Unknown';
+                let rec = parseFloat(row[colRec]) || 30;
+                let freq = parseFloat(row[colFreq]) || 1;
+                let mon = parseFloat(row[colMon]) || 100;
+
+                // Behavioral predictive adjustment
+                let predictedAnnualRevenue = (intercept + slope * freq) * (freq > 0 ? freq : 1);
+                let clv = 0;
+                for (let t = 1; t <= horizon; t++) {
+                    clv += (predictedAnnualRevenue * profitMargin) / Math.pow(1 + discountRate, t);
+                }
+
+                let segment = clv > 2000 ? 'VIP' : clv > 800 ? 'Loyal' : clv > 300 ? 'Potential' : 'At Risk';
+
+                return { cid, rec, freq, mon, clv: Math.max(10, clv), segment };
+            });
+
+            updateKpis(rSquared);
+            renderTable(processedData);
+            renderCharts(processedData);
+        }
+
+        function updateKpis(rSquared) {
+            const totalCust = processedData.length;
+            const totalClvSum = processedData.reduce((acc, curr) => acc + curr.clv, 0);
+            const avgClv = totalCust > 0 ? totalClvSum / totalCust : 0;
+
+            document.getElementById('kpiTotalCustomers').innerText = totalCust.toLocaleString();
+            document.getElementById('kpiAvgClv').innerText = '$' + avgClv.toFixed(2);
+            document.getElementById('kpiTotalValue').innerText = '$' + totalClvSum.toLocaleString(undefined, {maximumFractionDigits: 0});
+            document.getElementById('kpiRegressionFit').innerText = rSquared.toFixed(3);
+        }
+
+        function renderTable(data) {
+            const tbody = document.getElementById('customerTableBody');
+            tbody.innerHTML = '';
+            
+            data.slice(0, 50).forEach(row => {
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-slate-50 transition';
+                tr.innerHTML = `
+                    <td class="p-4 font-medium text-slate-900">${row.cid}</td>
+                    <td class="p-4 text-slate-600">${row.rec}</td>
+                    <td class="p-4 text-slate-600">${row.freq}</td>
+                    <td class="p-4 text-slate-600">$${row.mon.toFixed(2)}</td>
+                    <td class="p-4 font-semibold text-indigo-600">$${row.clv.toFixed(2)}</td>
+                    <td class="p-4"><span class="px-2.5 py-1 text-xs font-semibold rounded-full ${getBadgeStyle(row.segment)}">${row.segment}</span></td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function getBadgeStyle(segment) {
+            switch(segment) {
+                case 'VIP': return 'bg-purple-100 text-purple-800';
+                case 'Loyal': return 'bg-emerald-100 text-emerald-800';
+                case 'Potential': return 'bg-blue-100 text-blue-800';
+                default: return 'bg-rose-100 text-rose-800';
+            }
+        }
+
+        function renderCharts(data) {
+            const ctxHist = document.getElementById('clvHistogramChart').getContext('2d');
+            const ctxScatter = document.getElementById('behaviorScatterChart').getContext('2d');
+
+            if (clvHistogramChart) clvHistogramChart.destroy();
+            if (behaviorScatterChart) behaviorScatterChart.destroy();
+
+            // Histogram Bins
+            const bins = { '0-500': 0, '500-1500': 0, '1500-3000': 0, '3000-5000': 0, '5000+': 0 };
+            data.forEach(d => {
+                if (d.clv <= 500) bins['0-500']++;
+                else if (d.clv <= 1500) bins['500-1500']++;
+                else if (d.clv <= 3000) bins['1500-3000']++;
+                else if (d.clv <= 5000) bins['3000-5000']++;
+                else bins['5000+']++;
+            });
+
+            clvHistogramChart = new Chart(ctxHist, {
+                type: 'bar',
+                data: {
+                    labels: Object.keys(bins),
+                    datasets: [{
+                        label: 'Customer Count',
+                        data: Object.values(bins),
+                        backgroundColor: '#6366f1',
+                        borderRadius: 6
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: false }
+            });
+
+            behaviorScatterChart = new Chart(ctxScatter, {
+                type: 'scatter',
+                data: {
+                    datasets: [{
+                        label: 'Frequency vs Monetary',
+                        data: data.map(d => ({ x: d.freq, y: d.mon })),
+                        backgroundColor: '#10b981'
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: false }
+            });
+        }
+
+        // Search Filter
+        document.getElementById('searchInput').addEventListener('input', (e) => {
+            const term = e.target.value.toLowerCase();
+            const filtered = processedData.filter(d => String(d.cid).toLowerCase().includes(term));
+            renderTable(filtered);
+        });
+
+        // CSV Export
+        document.getElementById('exportCsvBtn').addEventListener('click', () => {
+            if (processedData.length === 0) return;
+            let csvContent = "data:text/csv;charset=utf-8,CustomerID,Recency,Frequency,Monetary,PredictedCLV,Segment\n";
+            processedData.forEach(row => {
+                csvContent += `${row.cid},${row.rec},${row.freq},${row.mon},${row.clv.toFixed(2)},${row.segment}\n`;
+            });
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", "clv_regression_predictions.csv");
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        });
+    </script>
+</body>
+</html>
