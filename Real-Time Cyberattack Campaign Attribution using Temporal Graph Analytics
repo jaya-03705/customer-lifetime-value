@@ -1,0 +1,24 @@
+real-time-cyber-attribution/  <-- Your GitHub Repository Name
+│
+├── app.py                     <-- Your main Streamlit script (Main file path)
+├── requirements.txt           <-- List of Python packages your app needs
+│
+├── modules/                   <-- Optional: Folder for your analytics code
+│   ├── graph_analytics.py
+│   └── attribution_model.py
+│
+└── data/                      <-- Optional: Small sample datasets
+    └── sample_logs.csv
+streamlit
+networkx
+pandas
+numpy
+torch
+torch-geometric
+
+git init
+git add .
+git commit -m "Initial commit of Cyberattack Attribution app"
+git branch -M main
+git remote add origin https://github.com
+git push -u origin main
